@@ -27,3 +27,5 @@ app.use('/api/journal', journalRoutes);
 app.use('/api/therapy', therapyRoutes);
 
 export default app;
+
+// Initial project setup completed
