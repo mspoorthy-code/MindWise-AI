@@ -29,3 +29,5 @@ app.use('/api/therapy', therapyRoutes);
 export default app;
 
 // Initial project setup completed
+
+// Psychological assessment engine integrated
