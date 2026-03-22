@@ -31,3 +31,5 @@ export default app;
 // Initial project setup completed
 
 // Psychological assessment engine integrated
+
+// Google Gemini AI model connected
