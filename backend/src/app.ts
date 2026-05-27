@@ -35,3 +35,5 @@ export default app;
 // Google Gemini AI model connected
 
 // Mood tracking and trend chart added
+
+// AI journaling reflection + tests added
