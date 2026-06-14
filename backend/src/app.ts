@@ -37,3 +37,5 @@ export default app;
 // Mood tracking and trend chart added
 
 // AI journaling reflection + tests added
+
+// Guided therapy sessions (CBT, grounding, box breathing)
