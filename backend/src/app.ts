@@ -39,3 +39,5 @@ export default app;
 // AI journaling reflection + tests added
 
 // Guided therapy sessions (CBT, grounding, box breathing)
+
+// Auth + anonymous mode + crisis detection added
