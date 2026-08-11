@@ -41,3 +41,5 @@ export default app;
 // Guided therapy sessions (CBT, grounding, box breathing)
 
 // Auth + anonymous mode + crisis detection added
+
+// Health check and stability improvements
