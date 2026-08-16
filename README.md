@@ -142,8 +142,4 @@ npm run dev:frontend -- test
 - **AI**: Google Gemini 2.5 Flash SDK (`@google/generative-ai`)
 - **Testing**: Jest, Supertest, ts-jest
 
----
 
-## 📄 License
-
-MIT © 2026 [RiyaBhurse](https://github.com/RiyaBhurse)
