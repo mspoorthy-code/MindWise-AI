@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String              @id @default(uuid())
+  email        String              @unique
+  passwordHash String?
+  name         String
+  isAnonymous  Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  profiles     AssessmentProfile[]
+  moods        MoodEntry[]
+  journals     JournalEntry[]
+  sessions     TherapySession[]
+  completions  GuidedCompletion[]
+}
+
+model AssessmentProfile {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stress     String
+  anxiety    String
+  mood       String
+  sleep      String
+  selfEsteem String
+  answers    String?  // JSON stringified answers map
+  createdAt  DateTime @default(now())
+}
+
+model MoodEntry {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
+  score     Int
+  label     String
+  emoji     String
+  createdAt DateTime @default(now())
+}
+
+model JournalEntry {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       String
+  text       String
+  reflection String
+  mood       Int      @default(3)
+  createdAt  DateTime @default(now())
+}
+
+model TherapySession {
+  id        String        @id @default(uuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  summary   String?
+  createdAt DateTime      @default(now())
+  messages  ChatMessage[]
+}
+
+model ChatMessage {
+  id        String         @id @default(uuid())
+  sessionId String
+  session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String         // 'user' | 'assistant'
+  content   String
+  timestamp DateTime       @default(now())
+}
+
+model GuidedCompletion {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionType String   // 'cbt' | 'mindfulness' | 'breathing'
+  completedAt DateTime @default(now())
+}
