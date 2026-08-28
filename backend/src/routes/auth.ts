@@ -56,29 +56,20 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    try {
-      const user = await prisma.user.findUnique({ where: { email } });
-      if (!user || !user.passwordHash) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      const isValid = await bcrypt.compare(password, user.passwordHash);
-      if (!isValid) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      return res.json({
-        status: 'success',
-        user: { id: user.id, email: user.email, name: user.name, isAnonymous: user.isAnonymous },
-      });
-    } catch (dbErr) {
-      // Fallback for dev/testing
-      const userName = email.split('@')[0];
-      return res.json({
-        status: 'success',
-        user: { id: 'local-' + Date.now(), email, name: userName, isAnonymous: false },
-      });
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
+
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    return res.json({
+      status: 'success',
+      user: { id: user.id, email: user.email, name: user.name, isAnonymous: user.isAnonymous },
+    });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ error: 'Failed to process login' });

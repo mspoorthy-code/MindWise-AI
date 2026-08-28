@@ -1,5 +1,6 @@
 import request from 'supertest';
 import app from '../src/app';
+import { prisma } from '../src/lib/db';
 
 describe('MindWise AI Backend API Tests', () => {
   it('GET /api/health should return ok status', async () => {
@@ -46,6 +47,30 @@ describe('MindWise AI Backend API Tests', () => {
 
   it('POST /api/journal/reflect should validate short entries', async () => {
     const res = await request(app).post('/api/journal/reflect').send({ text: 'too short' });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /api/auth/login should reject an unknown email instead of falling back to success', async () => {
+    jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(null);
+    const res = await request(app).post('/api/auth/login').send({
+      email: 'definitely-not-a-real-user@mindwise.test',
+      password: 'whatever-password',
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /api/auth/login should return 500 rather than granting access when the database errors', async () => {
+    jest.spyOn(prisma.user, 'findUnique').mockRejectedValueOnce(new Error('connection refused'));
+    const res = await request(app).post('/api/auth/login').send({
+      email: 'user@mindwise.test',
+      password: 'whatever-password',
+    });
+    expect(res.status).toBe(500);
+    expect(res.body.status).not.toBe('success');
+  });
+
+  it('POST /api/auth/login should require both email and password', async () => {
+    const res = await request(app).post('/api/auth/login').send({ email: 'user@mindwise.test' });
     expect(res.status).toBe(400);
   });
 });
