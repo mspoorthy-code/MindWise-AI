@@ -1,0 +1,26 @@
+services:
+  # Express Backend Service
+  - type: web
+    name: mindwise-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma db push --accept-data-loss && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mindwise-postgres
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false # Set in Render dashboard
+
+databases:
+  # Managed PostgreSQL Database
+  - name: mindwise-postgres
+    plan: free
+    databaseName: mindwise_db
+    user: postgres
+

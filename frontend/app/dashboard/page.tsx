@@ -1,7 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AssessmentProfile } from "../../lib/assessment";
+
+interface MindWiseUser {
+  id?: string;
+  name?: string;
+  email?: string;
+  isAnonymous?: boolean;
+  anonymous?: boolean;
+}
 
 interface MoodEntry {
   date: string;
@@ -69,6 +78,7 @@ function MoodChart({ history }: { history: MoodEntry[] }) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<AssessmentProfile | null>(null);
   const [moodHistory, setMoodHistory] = useState<MoodEntry[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
@@ -78,44 +88,83 @@ export default function DashboardPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "journal" | "sessions">("overview");
   const [userId, setUserId] = useState<string | null>(null);
+  const [user, setUser] = useState<MindWiseUser | null>(null);
 
   useEffect(() => {
-    const p = localStorage.getItem("mindwiseProfile");
-    if (p) setProfile(JSON.parse(p));
-
-    const mh = localStorage.getItem("mindwiseMoodHistory");
-    if (mh) setMoodHistory(JSON.parse(mh));
-
-    const jl = localStorage.getItem("mindwiseJournals");
-    if (jl) setJournals(JSON.parse(jl));
-
     const u = localStorage.getItem("mindwiseUser");
     if (u) {
       try {
-        const parsed = JSON.parse(u);
-        setUserId(parsed.id);
-        
-        // Fetch from backend
-        fetch(`/api/mood?userId=${parsed.id}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.history && data.history.length > 0) {
-              setMoodHistory(data.history);
-              localStorage.setItem("mindwiseMoodHistory", JSON.stringify(data.history));
-            }
-          })
-          .catch(() => {});
+        const parsed: MindWiseUser = JSON.parse(u);
+        setUser(parsed);
+        const userKey = parsed.id || parsed.email || "anon";
 
-        fetch(`/api/journal?userId=${parsed.id}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.journals && data.journals.length > 0) {
-              setJournals(data.journals);
-              localStorage.setItem("mindwiseJournals", JSON.stringify(data.journals));
-            }
-          })
-          .catch(() => {});
+        // Load user-specific profile
+        const p = localStorage.getItem(`mindwiseProfile_${userKey}`) || localStorage.getItem("mindwiseProfile");
+        if (p) {
+          setProfile(JSON.parse(p));
+        } else {
+          setProfile(null);
+        }
+
+        // Load user-specific mood history
+        const mh = localStorage.getItem(`mindwiseMoodHistory_${userKey}`);
+        if (mh) {
+          setMoodHistory(JSON.parse(mh));
+        } else {
+          setMoodHistory([]);
+        }
+
+        // Load user-specific journals
+        const jl = localStorage.getItem(`mindwiseJournals_${userKey}`);
+        if (jl) {
+          setJournals(JSON.parse(jl));
+        } else {
+          setJournals([]);
+        }
+
+        if (parsed.id) {
+          setUserId(parsed.id);
+
+          // Fetch profile from backend if not stored locally
+          fetch(`/api/assessment?userId=${parsed.id}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.profile) {
+                setProfile(data.profile);
+                localStorage.setItem(`mindwiseProfile_${userKey}`, JSON.stringify(data.profile));
+                localStorage.setItem("mindwiseProfile", JSON.stringify(data.profile));
+              }
+            })
+            .catch(() => {});
+
+          // Fetch mood history from backend
+          fetch(`/api/mood?userId=${parsed.id}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.history && data.history.length > 0) {
+                setMoodHistory(data.history);
+                localStorage.setItem(`mindwiseMoodHistory_${userKey}`, JSON.stringify(data.history));
+              }
+            })
+            .catch(() => {});
+
+          // Fetch journals from backend
+          fetch(`/api/journal?userId=${parsed.id}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.journals && data.journals.length > 0) {
+                setJournals(data.journals);
+                localStorage.setItem(`mindwiseJournals_${userKey}`, JSON.stringify(data.journals));
+              }
+            })
+            .catch(() => {});
+        }
       } catch {}
+    } else {
+      setUser(null);
+      setProfile(null);
+      setMoodHistory([]);
+      setJournals([]);
     }
   }, []);
 
@@ -126,7 +175,8 @@ export default function DashboardPage() {
     const entry: MoodEntry = { date: today, score: mood.score, label: mood.label, emoji: mood.emoji };
     const updated = [...moodHistory.slice(-6), entry];
     setMoodHistory(updated);
-    localStorage.setItem("mindwiseMoodHistory", JSON.stringify(updated));
+    const userKey = user?.id || user?.email || "anon";
+    localStorage.setItem(`mindwiseMoodHistory_${userKey}`, JSON.stringify(updated));
     setMoodLogged(true);
 
     try {
@@ -162,7 +212,8 @@ export default function DashboardPage() {
       };
       const updated = [entry, ...journals];
       setJournals(updated);
-      localStorage.setItem("mindwiseJournals", JSON.stringify(updated));
+      const userKey = user?.id || user?.email || "anon";
+      localStorage.setItem(`mindwiseJournals_${userKey}`, JSON.stringify(updated));
       setJournalText("");
     } catch {
       console.error("Journal API error");
@@ -170,6 +221,22 @@ export default function DashboardPage() {
       setIsAnalyzing(false);
     }
   };
+
+  const handleSignOut = () => {
+    localStorage.removeItem("mindwiseUser");
+    localStorage.removeItem("mindwiseProfile");
+    localStorage.removeItem("mindwiseMoodHistory");
+    localStorage.removeItem("mindwiseJournals");
+    setUser(null);
+    setProfile(null);
+    setMoodHistory([]);
+    setJournals([]);
+    router.push("/auth");
+  };
+
+  const isAnonymous = !user || Boolean(user.isAnonymous) || Boolean(user.anonymous) || user.email === "anonymous" || user.name === "Anonymous" || user.name === "Anonymous User";
+  const displayName = user?.name && !isAnonymous && user.name !== "Anonymous" && user.name !== "Anonymous User" ? user.name.trim() : null;
+  const greeting = displayName ? `Hi ${displayName}!` : "Hi there!";
 
   const profileSections = profile
     ? [
@@ -197,13 +264,42 @@ export default function DashboardPage() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         borderBottom: "1px solid var(--border)", borderRadius: 0
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 20 }}>🧠</span>
-          <span style={{ fontWeight: 800, fontSize: 17 }}>Mind<span className="gradient-text">Wise AI</span></span>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+            <span style={{ fontSize: 20 }}>🧠</span>
+            <span style={{ fontWeight: 800, fontSize: 17 }}>Mind<span className="gradient-text">Wise AI</span></span>
+          </Link>
+          <div
+            id="nav-greeting-container"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 12px",
+              borderRadius: "20px",
+              background: isAnonymous ? "var(--bg-secondary)" : "var(--accent-glow)",
+              border: `1px solid ${isAnonymous ? "var(--border)" : "var(--border-accent)"}`,
+              fontSize: 13,
+              fontWeight: 600,
+              color: isAnonymous ? "var(--text-secondary)" : "var(--accent-light)",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <span>{isAnonymous ? "👋" : "✨"}</span>
+            <span id="nav-greeting">{greeting}</span>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Link href="/therapy" className="btn btn-secondary" style={{ padding: "8px 14px", fontSize: 13 }}>🌿 Guided Sessions</Link>
           <Link href="/chat" className="btn btn-primary" style={{ padding: "8px 16px", fontSize: 13 }}>💬 Start Therapy</Link>
+          <button
+            onClick={handleSignOut}
+            className="btn btn-ghost"
+            style={{ padding: "8px 12px", fontSize: 13, color: "var(--text-muted)" }}
+            title="Sign Out / Switch Account"
+          >
+            Sign Out
+          </button>
         </div>
       </nav>
 
@@ -211,11 +307,12 @@ export default function DashboardPage() {
         {/* Welcome */}
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.5px" }}>
-            Your Wellness Dashboard
+            {displayName ? `Welcome, ${displayName}` : "Your Wellness Dashboard"}
           </h1>
           <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>
             {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             {streak > 0 && <span style={{ marginLeft: 12 }} className="badge badge-success">🔥 {streak}-day streak</span>}
+            {isAnonymous && <span style={{ marginLeft: 8 }} className="badge badge-accent">🕵️ Anonymous Mode</span>}
           </p>
         </div>
 

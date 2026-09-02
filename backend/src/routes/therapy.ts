@@ -36,10 +36,18 @@ Session:\n${sessionText}`;
 
       if (userId && sessionId) {
         try {
-          await prisma.therapySession.update({
-            where: { id: sessionId },
-            data: { summary: summaryText },
-          });
+          const userExists = await prisma.user.findUnique({ where: { id: userId } });
+          if (userExists) {
+            await prisma.therapySession.upsert({
+              where: { id: sessionId },
+              update: { summary: summaryText },
+              create: {
+                id: sessionId,
+                userId: userId,
+                summary: summaryText,
+              },
+            });
+          }
         } catch (dbErr) {
           console.warn('DB session summary update warning:', dbErr);
         }
@@ -100,12 +108,26 @@ User says: "${userMessage}"`;
 
     if (userId && sessionId) {
       try {
-        await prisma.chatMessage.createMany({
-          data: [
-            { sessionId, role: 'user', content: userMessage },
-            { sessionId, role: 'assistant', content: replyContent },
-          ],
-        });
+        const userExists = await prisma.user.findUnique({ where: { id: userId } });
+        if (userExists) {
+          // Ensure the session exists in the database first
+          await prisma.therapySession.upsert({
+            where: { id: sessionId },
+            update: {},
+            create: {
+              id: sessionId,
+              userId: userId,
+            },
+          });
+
+          // Insert chat messages linked to the valid session
+          await prisma.chatMessage.createMany({
+            data: [
+              { sessionId, role: 'user', content: userMessage },
+              { sessionId, role: 'assistant', content: replyContent },
+            ],
+          });
+        }
       } catch (dbErr) {
         console.warn('DB chat message save warning:', dbErr);
       }
