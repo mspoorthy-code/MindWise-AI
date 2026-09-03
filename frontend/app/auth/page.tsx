@@ -1,18 +1,28 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 type Mode = "login" | "signup";
 
-export default function AuthPage() {
+function AuthForm() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("login");
+  const searchParams = useSearchParams();
+  const initialMode = searchParams.get("mode") === "signup" ? "signup" : "login";
+
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const m = searchParams.get("mode");
+    if (m === "signup" || m === "login") {
+      setMode(m);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,12 +32,14 @@ export default function AuthPage() {
 
     setIsLoading(true);
 
+    const userName = (name && name.trim()) || email.split("@")[0];
+
     try {
       const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name: userName }),
       });
 
       const data = await res.json();
@@ -36,15 +48,72 @@ export default function AuthPage() {
         return;
       }
 
-      localStorage.setItem("mindwiseUser", JSON.stringify(data.user));
-      const profile = localStorage.getItem("mindwiseProfile");
-      router.push(profile ? "/dashboard" : "/assessment");
+      const userSession = {
+        id: data.user?.id || ("user-" + Date.now()),
+        email: data.user?.email || email,
+        name: data.user?.name || userName,
+        isAnonymous: false,
+        anonymous: false,
+      };
+
+      // Clear any transient previous session profile
+      localStorage.removeItem("mindwiseProfile");
+      localStorage.removeItem("mindwiseMoodHistory");
+      localStorage.removeItem("mindwiseJournals");
+      localStorage.setItem("mindwiseUser", JSON.stringify(userSession));
+
+      const userKey = userSession.id || userSession.email;
+
+      if (mode === "signup") {
+        // Brand new user signup -> always prompt assessment
+        router.push("/assessment");
+      } else {
+        // Login -> check if this specific user already has a saved assessment profile
+        const userProfile = localStorage.getItem(`mindwiseProfile_${userKey}`) || localStorage.getItem(`mindwiseProfile_${userSession.email}`);
+        if (userProfile) {
+          localStorage.setItem("mindwiseProfile", userProfile);
+          router.push("/dashboard");
+        } else {
+          // Check backend for this user's profile
+          try {
+            const profileRes = await fetch(`/api/assessment?userId=${userSession.id}`);
+            const profileData = await profileRes.json();
+            if (profileData.profile) {
+              localStorage.setItem(`mindwiseProfile_${userKey}`, JSON.stringify(profileData.profile));
+              localStorage.setItem("mindwiseProfile", JSON.stringify(profileData.profile));
+              router.push("/dashboard");
+              return;
+            }
+          } catch {}
+          router.push("/assessment");
+        }
+      }
     } catch {
       // Offline / fallback handling
-      const user = { email, name: name || email.split("@")[0], anonymous: false };
-      localStorage.setItem("mindwiseUser", JSON.stringify(user));
-      const profile = localStorage.getItem("mindwiseProfile");
-      router.push(profile ? "/dashboard" : "/assessment");
+      const userSession = {
+        id: "local-" + Date.now(),
+        email,
+        name: userName,
+        isAnonymous: false,
+        anonymous: false,
+      };
+      localStorage.removeItem("mindwiseProfile");
+      localStorage.removeItem("mindwiseMoodHistory");
+      localStorage.removeItem("mindwiseJournals");
+      localStorage.setItem("mindwiseUser", JSON.stringify(userSession));
+
+      if (mode === "signup") {
+        router.push("/assessment");
+      } else {
+        const userKey = userSession.email;
+        const userProfile = localStorage.getItem(`mindwiseProfile_${userKey}`);
+        if (userProfile) {
+          localStorage.setItem("mindwiseProfile", userProfile);
+          router.push("/dashboard");
+        } else {
+          router.push("/assessment");
+        }
+      }
     } finally {
       setIsLoading(false);
     }
@@ -52,22 +121,44 @@ export default function AuthPage() {
 
   const handleAnonymous = async () => {
     setIsLoading(true);
+    // Clear any previous user's active session
+    localStorage.removeItem("mindwiseProfile");
+    localStorage.removeItem("mindwiseMoodHistory");
+    localStorage.removeItem("mindwiseJournals");
+
     try {
       const res = await fetch("/api/auth/anonymous", { method: "POST" });
       const data = await res.json();
       if (data.user) {
-        localStorage.setItem("mindwiseUser", JSON.stringify(data.user));
+        const user = {
+          ...data.user,
+          isAnonymous: true,
+          anonymous: true,
+        };
+        localStorage.setItem("mindwiseUser", JSON.stringify(user));
       } else {
-        const fallback = { email: "anonymous", name: "Anonymous", anonymous: true };
+        const fallback = {
+          id: "anon-" + Date.now(),
+          email: "anonymous",
+          name: "Anonymous User",
+          isAnonymous: true,
+          anonymous: true,
+        };
         localStorage.setItem("mindwiseUser", JSON.stringify(fallback));
       }
     } catch {
-      const fallback = { email: "anonymous", name: "Anonymous", anonymous: true };
+      const fallback = {
+        id: "anon-" + Date.now(),
+        email: "anonymous",
+        name: "Anonymous User",
+        isAnonymous: true,
+        anonymous: true,
+      };
       localStorage.setItem("mindwiseUser", JSON.stringify(fallback));
     } finally {
       setIsLoading(false);
-      const profile = localStorage.getItem("mindwiseProfile");
-      router.push(profile ? "/dashboard" : "/assessment");
+      // Anonymous user always starts with a fresh assessment
+      router.push("/assessment");
     }
   };
 
@@ -99,6 +190,7 @@ export default function AuthPage() {
         <div style={{ display: "flex", gap: 4, background: "var(--bg-secondary)", borderRadius: 12, padding: 4, marginBottom: 24 }}>
           {(["login", "signup"] as Mode[]).map((m) => (
             <button key={m} onClick={() => { setMode(m); setError(""); }}
+              id={`tab-${m}`}
               style={{
                 flex: 1, padding: "8px 0", borderRadius: 10, border: "none", cursor: "pointer",
                 font: "inherit", fontSize: 13, fontWeight: 600, transition: "all 0.2s",
@@ -115,7 +207,7 @@ export default function AuthPage() {
           {mode === "signup" && (
             <div>
               <label style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>Full Name</label>
-              <input id="auth-name" className="input" type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+              <input id="auth-name" className="input" type="text" placeholder="e.g. Alex" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
           )}
           <div>
@@ -140,7 +232,7 @@ export default function AuthPage() {
           <div className="divider" style={{ flex: 1, margin: 0 }} />
         </div>
 
-        <button id="auth-anonymous" className="btn btn-secondary" style={{ width: "100%", fontSize: 14 }} onClick={handleAnonymous}>
+        <button id="auth-anonymous" className="btn btn-secondary" style={{ width: "100%", fontSize: 14 }} onClick={handleAnonymous} disabled={isLoading}>
           🕵️ Continue Anonymously
         </button>
 
@@ -150,5 +242,17 @@ export default function AuthPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-primary)" }}>
+        <div className="spinner" />
+      </div>
+    }>
+      <AuthForm />
+    </Suspense>
   );
 }

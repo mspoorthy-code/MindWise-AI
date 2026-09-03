@@ -95,14 +95,13 @@ MindWiseAI/
    ```
    Edit `backend/.env` to configure your PostgreSQL connection and Gemini API key:
    ```env
-   PORT=5000
+   PORT=5005
    DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mindwise_db?schema=public"
    GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
    ```
 
 3. **Initialize Database (PostgreSQL & Prisma)**:
    ```bash
-   cd backend
    npm run prisma:generate
    npm run prisma:push
    ```
@@ -113,7 +112,7 @@ MindWiseAI/
    npm run dev
    ```
    - **Frontend**: http://localhost:3000
-   - **Backend**: http://localhost:5000
+   - **Backend**: http://localhost:5005
 
 ---
 

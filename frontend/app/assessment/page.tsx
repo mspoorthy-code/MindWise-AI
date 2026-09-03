@@ -27,13 +27,19 @@ export default function AssessmentPage() {
       } else {
         // Score and save locally + backend
         const profile = scoreAssessment(newAnswers);
-        localStorage.setItem("mindwiseProfile", JSON.stringify(profile));
-
         let userId = null;
+        let userKey = "anon";
         try {
           const uStr = localStorage.getItem("mindwiseUser");
-          if (uStr) userId = JSON.parse(uStr).id;
+          if (uStr) {
+            const u = JSON.parse(uStr);
+            userId = u.id || null;
+            userKey = u.id || u.email || "anon";
+          }
         } catch {}
+
+        localStorage.setItem("mindwiseProfile", JSON.stringify(profile));
+        localStorage.setItem(`mindwiseProfile_${userKey}`, JSON.stringify(profile));
 
         try {
           await fetch("/api/assessment", {

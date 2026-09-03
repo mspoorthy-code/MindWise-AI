@@ -16,7 +16,7 @@ router.post('/signup', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const userName = name || email.split('@')[0];
+    const userName = (name && typeof name === 'string' && name.trim()) || email.split('@')[0];
 
     try {
       const user = await prisma.user.create({
@@ -99,7 +99,7 @@ router.post('/anonymous', async (req, res) => {
     } catch (dbErr) {
       return res.json({
         status: 'success',
-        user: { id: anonId, email: 'anonymous', name: 'Anonymous', isAnonymous: true },
+        user: { id: anonId, email: 'anonymous', name: 'Anonymous User', isAnonymous: true },
       });
     }
   } catch (err) {

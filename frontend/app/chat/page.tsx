@@ -29,21 +29,29 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("mindwiseProfile");
-    const p: AssessmentProfile | null = stored ? JSON.parse(stored) : null;
-    setProfile(p);
-
+    let userKey = "anon";
+    let nameGreeting = "";
     const u = localStorage.getItem("mindwiseUser");
     if (u) {
       try {
-        setUserId(JSON.parse(u).id);
+        const parsed = JSON.parse(u);
+        if (parsed.id) setUserId(parsed.id);
+        userKey = parsed.id || parsed.email || "anon";
+        const isAnon = Boolean(parsed.isAnonymous) || Boolean(parsed.anonymous) || parsed.email === "anonymous" || parsed.name === "Anonymous" || parsed.name === "Anonymous User";
+        if (!isAnon && parsed.name) {
+          nameGreeting = ` ${parsed.name.trim()}`;
+        }
       } catch {}
     }
 
+    const stored = localStorage.getItem(`mindwiseProfile_${userKey}`) || localStorage.getItem("mindwiseProfile");
+    const p: AssessmentProfile | null = stored ? JSON.parse(stored) : null;
+    setProfile(p);
+
     // Greeting message
     const greeting = p
-      ? `Hello! I'm MindWise, your personal AI companion. Based on your assessment, I can see you're experiencing some challenges — I'm here to help. What's on your mind today?`
-      : `Hello! I'm MindWise, your AI mental health companion. I'm here to listen, support, and help you navigate whatever you're going through. What would you like to talk about?`;
+      ? `Hello${nameGreeting}! I'm MindWise, your personal AI companion. Based on your assessment, I can see you're experiencing some challenges — I'm here to help. What's on your mind today?`
+      : `Hello${nameGreeting}! I'm MindWise, your AI mental health companion. I'm here to listen, support, and help you navigate whatever you're going through. What would you like to talk about?`;
 
     setMessages([{
       id: "init",

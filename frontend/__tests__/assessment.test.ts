@@ -166,3 +166,29 @@ describe('Mood scoring logic', () => {
     expect(avg).toBeCloseTo(3.0);
   });
 });
+
+describe('User Greeting Formatting Logic', () => {
+  const getGreeting = (user: { name?: string; email?: string; isAnonymous?: boolean; anonymous?: boolean } | null) => {
+    const isAnonymous = !user || Boolean(user.isAnonymous) || Boolean(user.anonymous) || user.email === 'anonymous' || user.name === 'Anonymous' || user.name === 'Anonymous User';
+    const displayName = user?.name && !isAnonymous && user.name !== 'Anonymous' && user.name !== 'Anonymous User' ? user.name.trim() : null;
+    return displayName ? `Hi ${displayName}!` : 'Hi there!';
+  };
+
+  test('anonymous user produces "Hi there!"', () => {
+    expect(getGreeting(null)).toBe('Hi there!');
+    expect(getGreeting({ isAnonymous: true, name: 'Anonymous User' })).toBe('Hi there!');
+    expect(getGreeting({ anonymous: true, email: 'anonymous' })).toBe('Hi there!');
+    expect(getGreeting({ isAnonymous: true, name: 'Anonymous' })).toBe('Hi there!');
+  });
+
+  test('signed up user with name produces "Hi {name}!"', () => {
+    expect(getGreeting({ name: 'Alex', isAnonymous: false })).toBe('Hi Alex!');
+    expect(getGreeting({ name: 'Medhashree', isAnonymous: false, email: 'medha@example.com' })).toBe('Hi Medhashree!');
+    expect(getGreeting({ name: 'John Doe', isAnonymous: false })).toBe('Hi John Doe!');
+  });
+
+  test('signed up user with whitespace is trimmed', () => {
+    expect(getGreeting({ name: '  Sarah  ', isAnonymous: false })).toBe('Hi Sarah!');
+  });
+});
+
